@@ -66,6 +66,8 @@ and their limits. Report what you actually measured and label estimates separate
   IQ2_XS with adaptive cache E4/S24: 48.23 accepted-decode tok/s (median of 5) on a modified, locally built engine (not an official release; source commit and hashes in provenance.json, steps in REPRODUCE.md).
 - [2026-10-12: Radeon 780M (gfx1103), Ryzen 7 8745HS, 60 GB RAM, GTT 50 GiB](../bench/results/2026-10-12-community-gfx1103/README.md):
   the gfx1103 port (native dot4, the gfx11 WMMA kernels, the exact speed switches and a calibrated hipBLASLt table), hand-built on ROCm 10.1, Q2_0 + MTP at 32K: prompts 90 tok/s plain, 186 with the table, 277 with the WMMA opt-ins (4K), decode 13.1 -> 14.3 tok/s; zero GPU resets.
+- [2026-10-18: NVIDIA GeForce RTX 2060 12 GB (sm_75), Xeon E5-2650 v3, 64 GB RAM](../bench/results/2026-10-18-community-turing-sm75/README.md):
+  Strata v0.1.45 CUDA 12.4 source build, Flash-Next IQ3_S, 262,144-token context: enables Fused IQ MoE (IQ3_S, IQ2, IQ4) within Turing's 64 KB SMEM ceiling (AS=2 dynamic staging, WW=2 for IQ2_S/XS), FP16 tensor core BF16 emulation, and GDN keyhead recurrence. Bulk prefill 501 -> 759 tok/s (+51.5%), TTFT on 5.8K tokens 14.11 -> 10.11 s (-28.3%), and on 17.5K tokens 43.51 -> 32.68 s (-24.9%). Decode 31.7-32.0 tok/s untouched.
 
 ## Run the benchmark
 
