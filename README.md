@@ -5,6 +5,15 @@
 <p align="center"><b>Run a 125-billion-parameter AI model on your own gaming PC</b><br>
 NVIDIA or AMD graphics card (12 GB or more) · Windows or Linux · free and open source</p>
 
+> [!TIP]
+> ### ⚡ Strata Turing (sm_75) Edition
+> **Optimized Fork for NVIDIA Turing GPUs** (GeForce RTX 2060, 2070, 2080, 2080 Ti, Titan RTX, GTX 1660, Tesla T4, Quadro RTX).
+> 
+> * **Fused IQ MoE Prefill:** Unlocks fused MoE kernels for `IQ3_S`, `IQ2`, `IQ4` within Turing's strict 64 KB shared memory limit (`AS=2` dynamic staging, `WW=2` for IQ2_S/XS).
+> * **Tensor Core Acceleration:** Enables FP16 Tensor Core emulation for BF16 GEMMs (`cc <= 75`) and Gated DeltaNet (GDN) keyhead recurrence.
+> * **Empirical Gains (RTX 2060 12GB @ 200W):** **+51.5% bulk prefill throughput** (759.4 vs 501.3 tok/s), **-28.3% TTFT latency** on 5.8K prompts (10.11 s vs 14.11 s), **-24.9% latency** on 17.5K OpenCode prompts (32.68 s vs 43.51 s).
+> * 📊 **Full Benchmark Report:** [`bench/results/2026-10-18-community-turing-sm75/README.md`](bench/results/2026-10-18-community-turing-sm75/README.md) · Benchmark script: [`tools/bench_turing_prefill.py`](tools/bench_turing_prefill.py)
+
 <p align="center"><a href="https://github.com/Niko1221/Strata/releases/download/v0.1.10/Pagoda.mp4"><img src="docs/media/pagoda-preview.webp" width="720" alt="A voxel pagoda garden that Strata's model wrote, running in the browser"></a><br>
 <sub>A voxel pagoda garden, 1 shot prompt running on an RTX 5070 with Strata (IQ3_S, 128K context) ·
 <a href="https://github.com/Niko1221/Strata/releases/download/v0.1.10/Pagoda.mp4">full video (49 s)</a></sub></p>
