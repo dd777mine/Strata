@@ -6,28 +6,47 @@
 </p>
 
 > [!NOTE]
-> **Disclaimer:** Not affiliated with or endorsed by the upstream author. This repository contains an experimental sm_75 prefill optimization patch in `src/prefill/moe_fused_iq.cu`; the rest of the codebase is unmodified upstream Strata. All optimizations are strictly opt-in via environment variables (`STRATA_PF_FUSED=1` or `STRATA_PF_FUSED_SM75=1`), leaving default execution untouched.
+> **Experimental workbench fork — read this first.**
+>
+> This is a personal experimental fork of upstream [Strata](https://github.com/Niko1221/Strata) by Niko1221.
+> I run models on an RTX 2060 12GB (Turing / `sm_75`), and I was hitting prefill bottlenecks on this generation of card.
+> I worked on tracing and testing these adjustments on my machine with an AI coding agent as a second pair of eyes.
+>
+> **What is modified in this fork:**
+>
+> | File | What changed | Upstream PR status |
+> |---|---|:---:|
+> | `src/prefill/moe_fused_iq.cu` | Removed the check that blocked sm_75, since IQ3_S/IQ2_S blocks fit in 64 KB shared memory with `ASTAGES_DEV=2` | ✅ **[1-File PR branch](https://github.com/Niko1221/Strata/compare/main...dd777mine:Strata:fix/moe-iq-prefill-sm75-gate?expand=1)** |
+> | `src/prefill/gemm.cu` | Enabled Tensor Cores for BF16 on Turing (`cc <= 75`) via FP16 fast path | ❌ Personal fork only |
+> | `src/prefill/kernels.cu` | Enabled hardware GDN keyhead recurrence on sm_75 | ❌ Personal fork only |
+> | `src/kernels/cuda/iq_kernels.cu` | Staged 2 KB `iq3s_grid` LUT in shared memory and unpacked signs via single-cycle IMAD | ❌ Personal fork only |
+> | `serve/server.py` | Safe memlock limits | ❌ Personal fork only |
+> | `tools/bench_turing_prefill.py` | Standalone script to test prefill latency | ❌ Personal fork only |
+>
+> Some of these I understand well, some I got to work by trying and testing things on my hardware. Treat this fork as an experimental workbench, not an official release. If you want only the clean, isolated fix, use the single-file PR branch.
+>
+> All numbers below are from my own machine and my own card (RTX 2060 12GB), not a formal benchmark rig.
 
 ---
 
-## Overview & The 3 Pillars of Turing Acceleration
+## What this fork changes (and why)
 
-In upstream Strata (including v0.1.45), Fused MoE prefill was restricted exclusively to `Q2_0` on NVIDIA Turing (`sm_75`) GPUs due to an assumed 64 KB Shared Memory (SMEM) limitation. As a result, the primary recommended format **`IQ3_S`** (and other codebook formats like `IQ2` and `IQ4`) fell back to unfused scalar dequantization and host-synchronized MMQ prefill, causing severe latency spikes on Turing hardware.
+In upstream Strata (including v0.1.45), Fused MoE prefill was restricted to `Q2_0` on NVIDIA Turing (`sm_75`) GPUs due to an assumed 64 KB Shared Memory (SMEM) limitation. As a result, formats like **`IQ3_S`** fell back to unfused scalar dequantization and host synchronization, causing noticeable latency on Turing cards.
 
-This fork delivers a complete, systematic hardware optimization suite for Turing GPUs (empirically tested on **GeForce RTX 2060 12GB** and **GeForce RTX 2080 SUPER**), built on **Three Pillars**:
+This repository collects the changes made to get Turing cards running efficiently:
 
-### 🏛️ Pillar 1: Fused IQ MoE Prefill Gate (`src/prefill/moe_fused_iq.cu`)
-* **Shared Memory Budget Fix:** Unlocks the monolithic 1500-line `fused::experts_native` CUDA kernel on Turing. Under `ASTAGES_DEV=2`, `IQ3_S` at 4 warps/row requires only **58.75 KB** (cleanly fitting Turing's 64 KB limit with 5.25 KB headroom). For `IQ2_S` and `IQ2_XS`, clamping to 2 warps/row reduces SMEM to **43.50 KB**.
-* **Zero Host Synchronization:** Completely eliminates 2,059 ms of scalar weight dequantization in CPU DRAM and blocking PCIe transfers.
-* *Note:* This isolated fix is also submitted upstream as a standalone, bite-sized PR: **[PR branch: fix/moe-iq-prefill-sm75-gate](https://github.com/Niko1221/Strata/compare/main...dd777mine:Strata:fix/moe-iq-prefill-sm75-gate?expand=1)**.
+### Part 1: Unblocking Fused MoE Gate (`src/prefill/moe_fused_iq.cu`)
+* **Shared Memory Adjustment:** Under `ASTAGES_DEV=2`, `IQ3_S` at 4 warps/row requires **58.75 KB** (fitting inside Turing's 64 KB limit with 5.25 KB headroom). For `IQ2_S` and `IQ2_XS`, using 2 warps/row reduces SMEM to **43.50 KB**.
+* **Zero Host Transfers:** Removes the fallback to CPU dequantization, keeping the routing on the GPU.
+* *Note:* This is the only change submitted upstream as an isolated 1-file PR: **[PR branch: fix/moe-iq-prefill-sm75-gate](https://github.com/Niko1221/Strata/compare/main...dd777mine:Strata:fix/moe-iq-prefill-sm75-gate?expand=1)**.
 
-### ⚡ Pillar 2: BF16 Tensor Cores on Turing (`src/prefill/gemm.cu`)
-* Upstream disabled Tensor Cores for BF16 on Turing (`cc < 75`), forcing attention projections to slow FP32 CUDA cores.
-* Adjusting the gate (`cc <= 75`) unblocks FP16 Tensor Cores via hardware fast conversion, shaving ~1.2 s off TTFT.
+### Part 2: BF16 Tensor Cores on Turing (`src/prefill/gemm.cu`)
+* Upstream excluded Turing from the tensor core path for BF16 (`cc < 75`), falling back to FP32 CUDA cores.
+* Changing the check to `cc <= 75` enables the fast FP16 conversion path, reducing latency by another ~1.2 s on long prompts.
 
-### 🚀 Pillar 3: GDN Recurrence & IMAD SIMD Staging (`src/prefill/kernels.cu`, `src/kernels/cuda/iq_kernels.cu`)
-* **Hardware GDN Keyhead:** Unlocks Gated DeltaNet linear attention recurrence on `sm_75`.
-* **SMEM Grid Staging & IMAD Unpacking:** Caches the 2 KB `iq3s_grid` LUT in shared memory (`kStageIqGrid<21>`) and unpacks signs via single-cycle `IMAD` instructions (`0x00204081u`), maximizing speculative decode speed.
+### Part 3: GDN Recurrence & Sign Unpacking (`src/prefill/kernels.cu`, `src/kernels/cuda/iq_kernels.cu`)
+* **GDN Keyhead:** Unlocks Gated DeltaNet linear attention recurrence for compute capability 7.5.
+* **Shared Memory Staging:** Stages the 2 KB `iq3s_grid` LUT in shared memory and accelerates sign bit unpacking via single-cycle `IMAD` instructions (`0x00204081u`).
 
 ---
 
