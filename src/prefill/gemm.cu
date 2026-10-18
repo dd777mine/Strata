@@ -722,7 +722,7 @@ int bf16_path() {
     if (cc <= 0 || cc >= 80) return 0;
     if (cc < 70) return 2;
     if (forced >= 0) return forced != 0 ? 1 : 0;
-    return cc < 75 ? 1 : 0;
+    return cc <= 75 ? 1 : 0;   // Volta (sm_70) and Turing (sm_75): emulate BF16 via FP16 tensor cores
 }
 bool grow(uint16_t*& p, int64_t& have, int64_t want) {   // `have`, `want`: 2-byte elements
     if (have >= want) return true;

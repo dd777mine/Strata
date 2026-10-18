@@ -53,6 +53,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Iterator, Protocol
 from urllib.parse import parse_qs, urlsplit
+try:
+    import resource
+    _soft, _hard = resource.getrlimit(resource.RLIMIT_MEMLOCK)
+    _want = _hard if _hard != resource.RLIM_INFINITY else resource.RLIM_INFINITY
+    if _soft < _want:
+        try:
+            resource.setrlimit(resource.RLIMIT_MEMLOCK, (_want, _hard))
+        except (ValueError, OSError):
+            pass
+except Exception:
+    pass
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -2635,9 +2646,11 @@ def layer_split_value(cfg: dict) -> str:
 
 
 def layer_split_of(cfg: dict) -> bool:
-    """Several GPUs in the config are a layer split, unless the args put the later card(s) to another use: with
-    --peer-device the second card is an expert-cache tier, and the engine refuses that beside --layer-split (#665)."""
-    return len(gpu_list(cfg)) > 1 and "--peer-device" not in cfg["args"]
+    """Several GPUs in the config are a layer split, unless the args put the later card(s) to another use:
+    with --peer-device or --expert-cache-device1 the second card is an expert-cache tier, and the engine
+    refuses that beside --layer-split (#665)."""
+    flags = {a.split("=", 1)[0] for a in cfg.get("args", [])}
+    return len(gpu_list(cfg)) > 1 and not flags & {"--peer-device", "--expert-cache-device1"}
 
 
 def engine_args(cfg: dict) -> list[str]:
