@@ -1514,6 +1514,7 @@ void experts_native(const Batch& b, const NativeGeom& g, int n_expert, int64_t n
         ck(cudaGetLastError(), "experts_native");
         return;
     }
+#endif
     int ww = pick_ww(n, n_expert);
     if (d.t75 && (g.gu_type == T_IQ2_S || g.gu_type == T_IQ2_XS)) ww = 2;
     // the most 64-row tiles the batch can have (every row in it, plus a partial tile per expert) - the items of the
