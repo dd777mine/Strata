@@ -1,9 +1,12 @@
-# Strata — Turing (sm_75) Edition
+# Strata (fork) — experimental sm_75 prefill support
 
 <p align="center">
   <b>High-Performance Local Inference for Qwen3.8-Flash-Next on NVIDIA Turing GPUs</b><br>
   <sub>Fork of upstream <a href="https://github.com/Niko1221/Strata">Strata</a> by Niko1221 · Licensed under MIT</sub>
 </p>
+
+> [!NOTE]
+> **Disclaimer:** Not affiliated with or endorsed by the upstream author. This repository contains an experimental sm_75 prefill optimization patch in `src/prefill/moe_fused_iq.cu`; the rest of the codebase is unmodified upstream Strata. All optimizations are strictly opt-in via environment variables (`STRATA_PF_FUSED=1` or `STRATA_PF_FUSED_SM75=1`), leaving default execution untouched.
 
 ---
 
